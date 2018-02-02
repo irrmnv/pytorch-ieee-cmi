@@ -32,4 +32,4 @@ class ResNet(nn.Module):
         out = self.net(out)
         out = out.view(out.size(0), -1)
         out = torch.cat([out, O], 1)
-        return F.softmax(self.fc(out), dim=1)
+        return self.fc(out)
