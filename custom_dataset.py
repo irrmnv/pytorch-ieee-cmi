@@ -19,17 +19,18 @@ class IEEECameraDataset(Dataset):
         self.verbose = verbose
         validation = not training
         self.transforms = VALIDATION_TRANSFORMS if validation else [[]]
-    
+
     def __len__(self):
         return len(self.items)
-    
+
     def __getitem__(self, idx):
         sample = process_item(self.items[idx], self.crop_size, self.verbose, training=self.training, transforms=self.transforms)
         if sample is None:
             print(self.items[idx])
-        
+
         X, O, y = sample
         return X, O, y
+
 
 RESOLUTIONS = {
     0: [[1520,2688]], # flips
@@ -45,6 +46,7 @@ RESOLUTIONS = {
     9: [[6000,4000]], # no flips
 }
 
+
 ORIENTATION_FLIP_ALLOWED = [
     True,
     False,
@@ -58,14 +60,18 @@ ORIENTATION_FLIP_ALLOWED = [
     False
 ]
 
+
 for class_id, resolutions in RESOLUTIONS.copy().items():
     resolutions.extend([resolution[::-1] for resolution in resolutions])
     RESOLUTIONS[class_id] = resolutions
 
+
 MANIPULATIONS = ['jpg70', 'jpg90', 'gamma0.8', 'gamma1.2', 'bicubic0.5', 'bicubic0.8', 'bicubic1.5', 'bicubic2.0']
+
 
 load_img_fast_jpg  = lambda img_path: jpeg.JPEG(img_path).decode()
 load_img           = lambda img_path: np.array(Image.open(img_path))
+
 
 def load_img_fast_jpg(img_path):
     try:
@@ -74,8 +80,8 @@ def load_img_fast_jpg(img_path):
     except:
         return load_img(img_path)
 
-def random_manipulation(img, manipulation=None):
 
+def random_manipulation(img, manipulation=None):
     if manipulation == None:
         manipulation = random.choice(MANIPULATIONS)
 
@@ -99,6 +105,7 @@ def random_manipulation(img, manipulation=None):
         assert False
     return im_decoded
 
+
 def get_crop(img, crop_size, random_crop=False):
     center_x, center_y = img.shape[1] // 2, img.shape[0] // 2
     half_crop = crop_size // 2
@@ -116,23 +123,11 @@ def get_crop(img, crop_size, random_crop=False):
 
     return img[center_y - half_crop : center_y + crop_size - half_crop, center_x - half_crop : center_x + crop_size - half_crop]
 
+
 def process_item(item, crop_size, verbose, training, transforms=[[]]):
     class_name = item.split('/')[-2]
     class_idx = get_class(class_name)
-
-    validation = not training 
-
     img = load_img_fast_jpg(item)
-    
-    shape = list(img.shape[:2])
-
-    # discard images that do not have right resolution
-    #if shape not in RESOLUTIONS[class_idx]:
-    #    return None
-
-    # some images may not be downloaded correctly and are B/W, discard those
-    #if img.ndim != 3:
-    #    return None
 
     if len(transforms) == 1:
         _img = img
@@ -144,7 +139,6 @@ def process_item(item, crop_size, verbose, training, transforms=[[]]):
         class_idx_s   = [ ]
 
     for transform in transforms:
-
         force_manipulation = 'manipulation' in transform
 
         if ('orientation' in transform) and (ORIENTATION_FLIP_ALLOWED[class_idx] is False):
@@ -183,62 +177,20 @@ def process_item(item, crop_size, verbose, training, transforms=[[]]):
         img = preprocess_image(img)# TODO:
         if verbose:
             print("ap: ", img.shape, item)
-        
+
         if len(transforms) > 1:
             img_s.append(img)    
             manipulated_s.append(manipulated)
             class_idx_s.append(class_idx)
-    
+
     if len(transforms) == 1:
         return img, np.array([manipulated], dtype=np.float32), class_idx
     else:
         return img_s, manipulated_s, class_idx_s
 
+
 VALIDATION_TRANSFORMS = [ [], ['orientation'], ['manipulation'], ['orientation','manipulation']]
+
 
 def preprocess_image(img):
     return img.astype(np.float32)
-
-'''
-def preprocess_image(img):
-    
-    if args.kernel_filter: TODO:
-        # see slide 13
-        # http://www.lirmm.fr/~chaumont/publications/WIFS-2016_TUAMA_COMBY_CHAUMONT_Camera_Model_Identification_With_CNN_slides.pdf
-        kernel_filter = 1/12. * np.array([\
-            [-1,  2,  -2,  2, -1],  \
-            [ 2, -6,   8, -6,  2],  \
-            [-2,  8, -12,  8, -2],  \
-            [ 2, -6,   8, -6,  2],  \
-            [-1,  2,  -2,  2, -1]]) 
-
-        return cv2.filter2D(img.astype(np.float32),-1,kernel_filter)
-        # kernel filter already puts mean ~0 and roughly scales between [-1..1]
-        # no need to preprocess_input further
-    else:
-        # find `preprocess_input` function specific to the classifier
-        classifier_to_module = { 
-            'NASNetLarge'       : 'nasnet',
-            'NASNetMobile'      : 'nasnet',
-            'DenseNet40'        : 'densenet',
-            'DenseNet121'       : 'densenet',
-            'DenseNet161'       : 'densenet',
-            'DenseNet201'       : 'densenet',
-            'InceptionResNetV2' : 'inception_resnet_v2',
-            'InceptionV3'       : 'inception_v3',
-            'MobileNet'         : 'mobilenet',
-            'ResNet50'          : 'resnet50',
-            'VGG16'             : 'vgg16',
-            'VGG19'             : 'vgg19',
-            'Xception'          : 'xception',
-
-        }
-
-        if args.classifier in classifier_to_module:
-            classifier_module_name = classifier_to_module[args.classifier]
-        else:
-            classifier_module_name = 'xception'
-
-        preprocess_input_function = getattr(globals()[classifier_module_name], 'preprocess_input')
-        return preprocess_input_function(img.astype(np.float32))
-'''
